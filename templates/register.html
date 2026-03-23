@@ -1,0 +1,43 @@
+{% extends "layout.html" %}
+
+{% block content %}
+    <div class="card">
+        <h2>Join the Family App</h2>
+
+        <form method="POST" action="/create-user">
+            <label for="name">Your name</label>
+            <input type="text" id="name" name="name" required>
+
+            <label for="join_code">Join code</label>
+            <input type="text" id="join_code" name="join_code" required>
+
+            <button type="submit">Create My Profile</button>
+        </form>
+
+        {% if error_message %}
+            <p style="color: #b91c1c;">{{ error_message }}</p>
+        {% endif %}
+
+        {% if status_message %}
+            <p class="status-message">{{ status_message }}</p>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3>Existing users</h3>
+        {% if users %}
+            <ul class="tap-list">
+                {% for user in users %}
+                    <li class="list-row">
+                        <a href="/appointments/{{ user.id }}?view=today">{{ user.name }}</a>
+                        <form method="POST" action="/users/{{ user.id }}/delete" onsubmit="return confirm('Delete {{ user.name }} and all of that profile\\'s appointments?');">
+                            <button type="submit" class="danger-button">Delete profile</button>
+                        </form>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No users yet.</p>
+        {% endif %}
+    </div>
+{% endblock %}

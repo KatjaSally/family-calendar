@@ -1,0 +1,647 @@
+{% extends "layout.html" %}
+
+{% block content %}
+    <div class="top-bar">
+        <button type="button" class="settings-button" onclick="document.getElementById('settings-panel').showModal()">Settings</button>
+    </div>
+
+    <div class="card">
+        <h2>Appointments for {{ user.name }}</h2>
+
+        <h3>View Mode</h3>
+        <p class="button-group">
+            <a
+                class="button-pill {% if selected_mode == 'my' %}is-active{% endif %}"
+                href="/appointments/{{ user.id }}?view={{ selected_view }}&mode=my"
+            >
+                My view
+            </a>
+            <a
+                class="button-pill {% if selected_mode == 'family' %}is-active{% endif %}"
+                href="/appointments/{{ user.id }}?view={{ selected_view }}&mode=family"
+            >
+                Family view
+            </a>
+        </p>
+
+        <div class="section-space"></div>
+
+        <h3>Switch User</h3>
+        <ul class="tap-list">
+            {% for person in users %}
+                <li>
+                    {% if person.id == user.id %}
+                        <strong>{{ person.name }}</strong>
+                    {% else %}
+                        <a href="/appointments/{{ person.id }}?view={{ person.default_view }}&mode={{ selected_mode }}">{{ person.name }}</a>
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+
+        <h3>View</h3>
+        <p class="button-group">
+            <a
+                class="button-pill {% if selected_view == 'today' %}is-active{% endif %}"
+                href="/appointments/{{ user.id }}?view=today&mode={{ selected_mode }}"
+            >
+                Today
+            </a>
+            <a
+                class="button-pill {% if selected_view == 'week' %}is-active{% endif %}"
+                href="/appointments/{{ user.id }}?view=week&mode={{ selected_mode }}"
+            >
+                Week
+            </a>
+            <a
+                class="button-pill {% if selected_view == 'month' %}is-active{% endif %}"
+                href="/appointments/{{ user.id }}?view=month&mode={{ selected_mode }}"
+            >
+                Month
+            </a>
+        </p>
+    </div>
+
+    {% if selected_mode == "my" %}
+        <div class="card">
+            <h3>Needs your attention</h3>
+            <ul>
+                {% for appointment in pending_appointments %}
+                    <li style="opacity: 0.82; background: var(--status-pending-bg); border: 1px dashed var(--status-pending-border); padding: 14px; border-radius: 12px; margin-bottom: 12px;">
+                        <strong>{{ appointment.title }}</strong><br>
+                        {{ appointment.appointment_time[8:10] }}-{{ appointment.appointment_time[5:7] }}-{{ appointment.appointment_time[0:4] }} um {{ appointment.appointment_time[11:16] }}<br>
+                        Shared by {{ appointment.user.name }}
+                        {% if appointment.share_reason %}
+                            <br>
+                            Reason: {{ appointment.share_reason }}
+                        {% endif %}
+
+                        <div style="margin-top: 10px;">
+                            <form method="POST" action="/appointments/{{ user.id }}/accept/{{ appointment.id }}?view={{ selected_view }}&mode={{ selected_mode }}">
+                                <button type="submit">Accept</button>
+                            </form>
+                        </div>
+
+                        <div style="margin-top: 10px;">
+                            <form method="POST" action="/appointments/{{ user.id }}/decline/{{ appointment.id }}?view={{ selected_view }}&mode={{ selected_mode }}">
+                                <label for="decline_note_{{ appointment.id }}">Decline note (optional)</label>
+                                <input type="text" id="decline_note_{{ appointment.id }}" name="decline_note">
+                                <button type="submit">Decline</button>
+                            </form>
+                        </div>
+                    </li>
+                {% else %}
+                    <li>No pending items.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <div class="card">
+        <h3>
+            {{ selected_view|capitalize }}
+            {% if selected_mode == "family" %}
+                - Family view
+            {% else %}
+                - My view
+            {% endif %}
+        </h3>
+
+        {% if selected_view == "today" %}
+            <div class="scroll-y" style="max-height: 75vh;">
+                <div style="position: relative; border: 1px solid var(--card-border); border-radius: 14px; overflow: hidden; min-height: 1200px; background: var(--table-cell-bg);">
+                    {% for hour in hour_labels %}
+                        <div style="position: relative; height: 50px; border-top: 1px solid var(--line-soft); padding-left: 12px; padding-top: 4px; font-size: 14px; color: var(--time-text);">
+                            {{ hour }}
+                        </div>
+                    {% endfor %}
+
+                    {% for item in timeline_appointments %}
+                        {% set appointment = item.appointment %}
+                        {% set declined_count = appointment.shares | selectattr("status", "equalto", "declined") | list | length %}
+                        {% set user_colors = user_color_map[appointment.user_id] %}
+                        <div
+                            style="
+                                position: absolute;
+                                left: 72px;
+                                right: 12px;
+                                top: {{ item.top }}px;
+                                padding: 10px;
+                                border-radius: 12px;
+                                {% if selected_mode == 'family' %}
+                                    background: {{ user_colors.background }};
+                                    border: 1px solid {{ user_colors.border }};
+                                    color: #2F2A24;
+                                {% elif appointment.user_id == user.id %}
+                                    background: var(--status-own-bg);
+                                    border: 1px solid var(--status-own-border);
+                                    color: #2F2A24;
+                                {% else %}
+                                    background: var(--status-shared-bg);
+                                    border: 1px solid var(--status-shared-border);
+                                    color: #2F2A24;
+                                {% endif %}
+                            "
+                        >
+                            <strong>{{ appointment.title }}</strong><br>
+                            {{ appointment.appointment_time[11:16] }}
+                            <br>
+                            {% if selected_mode == "family" %}
+                                {{ appointment.user.name }}
+                            {% elif appointment.user_id != user.id %}
+                                Shared by {{ appointment.user.name }}
+                            {% else %}
+                                Own appointment
+                                {% if declined_count > 0 %}
+                                    <br>
+                                    <span style="display: inline-block; margin-top: 6px; padding: 2px 8px; background: var(--status-decline-bg); border: 1px solid var(--status-decline-border); border-radius: 999px; font-size: 12px; color: var(--status-decline-text);">
+                                        {{ declined_count }} declined
+                                    </span>
+                                {% endif %}
+                            {% endif %}
+
+                            {% if appointment.user_id == user.id %}
+                                <div style="margin-top: 8px;">
+                                    <button type="button" class="compact-button" onclick="document.getElementById('edit-{{ appointment.id }}').showModal()">Edit</button>
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {% if not timeline_appointments %}
+                <p class="muted">No appointments today.</p>
+            {% endif %}
+
+        {% elif selected_view == "week" %}
+            <div class="scroll-x scroll-y desktop-only" style="max-height: 75vh;">
+                <table style="min-width: 820px; width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 10px; border-radius: 14px; overflow: hidden;">
+                    <thead>
+                        <tr>
+                            <th style="position: sticky; top: 0; z-index: 3; border: 1px solid var(--card-border); padding: 10px; width: 70px; background: var(--table-head-bg);">Time</th>
+                            {% for day in week_days %}
+                                <th style="position: sticky; top: 0; z-index: 2; border: 1px solid var(--card-border); padding: 10px; background: var(--table-head-bg);">
+                                    {{ day.strftime("%a") }}<br>
+                                    {{ day.strftime("%d.%m") }}
+                                </th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for hour in range(24) %}
+                            <tr>
+                                <td style="border: 1px solid var(--line-mid); padding: 10px; vertical-align: top; font-size: 14px; color: var(--time-text); background: var(--table-cell-bg);">
+                                    {{ "%02d:00" % hour }}
+                                </td>
+                                {% for day in week_days %}
+                                    <td style="border: 1px solid var(--line-mid); padding: 8px; vertical-align: top; height: 68px; background: var(--table-cell-bg);">
+                                        {% for appointment in week_cells[(day.isoformat(), hour)] %}
+                                            {% set declined_count = appointment.shares | selectattr("status", "equalto", "declined") | list | length %}
+                                            {% set user_colors = user_color_map[appointment.user_id] %}
+                                            <div
+                                                style="
+                                                    padding: 8px;
+                                                    border-radius: 12px;
+                                                    margin-bottom: 6px;
+                                                    {% if selected_mode == 'family' %}
+                                                        background: {{ user_colors.background }};
+                                                        border: 1px solid {{ user_colors.border }};
+                                                        color: #2F2A24;
+                                                    {% elif appointment.user_id == user.id %}
+                                                        background: var(--status-own-bg);
+                                                        border: 1px solid var(--status-own-border);
+                                                        color: #2F2A24;
+                                                    {% else %}
+                                                        background: var(--status-shared-bg);
+                                                        border: 1px solid var(--status-shared-border);
+                                                        color: #2F2A24;
+                                                    {% endif %}
+                                                "
+                                            >
+                                                <strong>{{ appointment.title }}</strong><br>
+                                                {{ appointment.appointment_time[11:16] }}
+                                                <br>
+                                                {% if selected_mode == "family" %}
+                                                    {{ appointment.user.name }}
+                                                {% elif appointment.user_id != user.id %}
+                                                    Shared by {{ appointment.user.name }}
+                                                {% else %}
+                                                    {% if declined_count > 0 %}
+                                                        <span style="display: inline-block; margin-top: 6px; padding: 2px 8px; background: var(--status-decline-bg); border: 1px solid var(--status-decline-border); border-radius: 999px; font-size: 12px; color: var(--status-decline-text);">
+                                                            {{ declined_count }} declined
+                                                        </span>
+                                                    {% endif %}
+                                                {% endif %}
+
+                                                {% if appointment.user_id == user.id %}
+                                                    <div style="margin-top: 8px;">
+                                                        <button type="button" class="compact-button" onclick="document.getElementById('edit-{{ appointment.id }}').showModal()">Edit</button>
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        {% endfor %}
+                                    </td>
+                                {% endfor %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mobile-only day-stack">
+                {% for day in week_days %}
+                    <div class="day-panel">
+                        <h4>{{ day.strftime("%A") }} · {{ day.strftime("%d.%m") }}</h4>
+                        {% set day_items = [] %}
+                        {% for hour in range(24) %}
+                            {% for appointment in week_cells[(day.isoformat(), hour)] %}
+                                {% set _ = day_items.append(appointment) %}
+                            {% endfor %}
+                        {% endfor %}
+
+                        {% if day_items %}
+                            {% for appointment in day_items %}
+                                {% set declined_count = appointment.shares | selectattr("status", "equalto", "declined") | list | length %}
+                                {% set user_colors = user_color_map[appointment.user_id] %}
+                                <div
+                                    style="
+                                        padding: 10px;
+                                        border-radius: 12px;
+                                        margin-bottom: 8px;
+                                        {% if selected_mode == 'family' %}
+                                            background: {{ user_colors.background }};
+                                            border: 1px solid {{ user_colors.border }};
+                                            color: #2F2A24;
+                                        {% elif appointment.user_id == user.id %}
+                                            background: var(--status-own-bg);
+                                            border: 1px solid var(--status-own-border);
+                                            color: #2F2A24;
+                                        {% else %}
+                                            background: var(--status-shared-bg);
+                                            border: 1px solid var(--status-shared-border);
+                                            color: #2F2A24;
+                                        {% endif %}
+                                    "
+                                >
+                                    <strong>{{ appointment.title }}</strong><br>
+                                    {{ appointment.appointment_time[11:16] }}
+                                    <br>
+                                    {% if selected_mode == "family" %}
+                                        {{ appointment.user.name }}
+                                    {% elif appointment.user_id != user.id %}
+                                        Shared by {{ appointment.user.name }}
+                                    {% elif declined_count > 0 %}
+                                        <span style="display: inline-block; margin-top: 6px; padding: 2px 8px; background: var(--status-decline-bg); border: 1px solid var(--status-decline-border); border-radius: 999px; font-size: 12px; color: var(--status-decline-text);">
+                                            {{ declined_count }} declined
+                                        </span>
+                                    {% endif %}
+
+                                    {% if appointment.user_id == user.id %}
+                                        <div style="margin-top: 8px;">
+                                            <button type="button" class="compact-button" onclick="document.getElementById('edit-{{ appointment.id }}').showModal()">Edit</button>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="muted">No appointments.</p>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+
+        {% elif selected_view == "month" %}
+            <h4>{{ current_month_label }}</h4>
+            <div class="scroll-y desktop-only" style="max-height: 75vh;">
+                <div class="scroll-x">
+                    <table style="min-width: 760px; width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 10px; border-radius: 14px; overflow: hidden;">
+                        <thead>
+                            <tr>
+                                {% for weekday_name in weekday_names %}
+                                    <th style="position: sticky; top: 0; z-index: 2; border: 1px solid var(--card-border); padding: 10px; background: var(--table-head-bg);">{{ weekday_name }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for week in month_weeks %}
+                                <tr>
+                                    {% for day in week %}
+                                        <td style="border: 1px solid var(--line-mid); vertical-align: top; height: 120px; padding: 8px; background: var(--table-cell-bg);">
+                                            <div style="font-weight: bold; margin-bottom: 8px; color: {% if day.month != month_weeks[0][3].month %}var(--text-soft){% else %}var(--text-main){% endif %};">
+                                                {{ day.day }}
+                                            </div>
+
+                                            {% for appointment in month_cells[day.isoformat()] %}
+                                                {% set declined_count = appointment.shares | selectattr("status", "equalto", "declined") | list | length %}
+                                                {% set user_colors = user_color_map[appointment.user_id] %}
+                                                <div
+                                                    style="
+                                                        font-size: 12px;
+                                                        padding: 4px 6px;
+                                                        border-radius: 10px;
+                                                        margin-bottom: 5px;
+                                                        {% if selected_mode == 'family' %}
+                                                            background: {{ user_colors.background }};
+                                                            border: 1px solid {{ user_colors.border }};
+                                                            color: #2F2A24;
+                                                        {% elif appointment.user_id == user.id %}
+                                                            background: var(--status-own-bg);
+                                                            border: 1px solid var(--status-own-border);
+                                                            color: #2F2A24;
+                                                        {% else %}
+                                                            background: var(--status-shared-bg);
+                                                            border: 1px solid var(--status-shared-border);
+                                                            color: #2F2A24;
+                                                        {% endif %}
+                                                    "
+                                                >
+                                                    {{ appointment.title }}
+                                                    {% if selected_mode == "family" %}
+                                                        <div>{{ appointment.user.name }}</div>
+                                                    {% elif appointment.user_id == user.id and declined_count > 0 %}
+                                                        <span style="font-size: 11px; color: var(--status-decline-text);"> • {{ declined_count }} declined</span>
+                                                    {% endif %}
+
+                                                    {% if appointment.user_id == user.id %}
+                                                        <div style="margin-top: 6px;">
+                                                            <button type="button" class="compact-button" onclick="document.getElementById('edit-{{ appointment.id }}').showModal()">Edit</button>
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            {% endfor %}
+                                        </td>
+                                    {% endfor %}
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="mobile-only day-stack">
+                {% for week in month_weeks %}
+                    {% for day in week %}
+                        {% if day.month == month_weeks[0][3].month %}
+                            <div class="day-panel">
+                                <h4>{{ day.strftime("%A") }} · {{ day.day }}</h4>
+
+                                {% if month_cells[day.isoformat()] %}
+                                    {% for appointment in month_cells[day.isoformat()] %}
+                                        {% set declined_count = appointment.shares | selectattr("status", "equalto", "declined") | list | length %}
+                                        {% set user_colors = user_color_map[appointment.user_id] %}
+                                        <div
+                                            style="
+                                                padding: 10px;
+                                                border-radius: 12px;
+                                                margin-bottom: 8px;
+                                                {% if selected_mode == 'family' %}
+                                                    background: {{ user_colors.background }};
+                                                    border: 1px solid {{ user_colors.border }};
+                                                    color: #2F2A24;
+                                                {% elif appointment.user_id == user.id %}
+                                                    background: var(--status-own-bg);
+                                                    border: 1px solid var(--status-own-border);
+                                                    color: #2F2A24;
+                                                {% else %}
+                                                    background: var(--status-shared-bg);
+                                                    border: 1px solid var(--status-shared-border);
+                                                    color: #2F2A24;
+                                                {% endif %}
+                                            "
+                                        >
+                                            <strong>{{ appointment.title }}</strong><br>
+                                            {{ appointment.appointment_time[11:16] }}
+                                            {% if selected_mode == "family" %}
+                                                <div>{{ appointment.user.name }}</div>
+                                            {% elif appointment.user_id != user.id %}
+                                                <div>Shared by {{ appointment.user.name }}</div>
+                                            {% elif declined_count > 0 %}
+                                                <div style="margin-top: 6px;">
+                                                    <span style="display: inline-block; padding: 2px 8px; background: var(--status-decline-bg); border: 1px solid var(--status-decline-border); border-radius: 999px; font-size: 12px; color: var(--status-decline-text);">
+                                                        {{ declined_count }} declined
+                                                    </span>
+                                                </div>
+                                            {% endif %}
+
+                                            {% if appointment.user_id == user.id %}
+                                                <div style="margin-top: 8px;">
+                                                    <button type="button" class="compact-button" onclick="document.getElementById('edit-{{ appointment.id }}').showModal()">Edit</button>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <p class="muted">No appointments.</p>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3>Add Appointment</h3>
+        <form method="POST">
+            <label for="title">Title</label>
+            <input type="text" id="title" name="title" required>
+
+            <label>Date</label>
+            <div class="select-row">
+                <select name="appointment_day" required>
+                    <option value="" selected disabled>Day</option>
+                    {% for day in days %}
+                        <option value="{{ day }}">{{ day }}</option>
+                    {% endfor %}
+                </select>
+
+                <select name="appointment_month" required>
+                    <option value="" selected disabled>Month</option>
+                    {% for month in months %}
+                        <option value="{{ month }}">{{ month }}</option>
+                    {% endfor %}
+                </select>
+
+                <select name="appointment_year" required>
+                    <option value="" selected disabled>Year</option>
+                    {% for year in years %}
+                        <option value="{{ year }}">{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <label>Time</label>
+            <div class="select-row">
+                <select name="appointment_hour" required>
+                    <option value="" selected disabled>Hour</option>
+                    {% for hour in hours %}
+                        <option value="{{ hour }}">{{ hour }}</option>
+                    {% endfor %}
+                </select>
+
+                <select name="appointment_minute" required>
+                    <option value="" selected disabled>Minute</option>
+                    {% for minute in minutes %}
+                        <option value="{{ minute }}">{{ minute }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <label for="share_reason">Reason for sharing</label>
+            <select id="share_reason" name="share_reason">
+                <option value="FYI">FYI</option>
+                <option value="Needs help">Needs help</option>
+                <option value="Shared event">Shared event</option>
+            </select>
+
+            <p>Share with:</p>
+            {% if other_users %}
+                {% for person in other_users %}
+                    <label>
+                        <input type="checkbox" name="shared_with" value="{{ person.id }}">
+                        {{ person.name }}
+                    </label><br>
+                {% endfor %}
+            {% else %}
+                <p>No other users yet.</p>
+            {% endif %}
+
+            <button type="submit">Save Appointment</button>
+        </form>
+    </div>
+
+    <div class="card tight-card">
+        <p><a href="/">Back to user list</a></p>
+    </div>
+
+    {% for appointment in editable_appointments %}
+        {% set parts = editable_data[appointment.id] %}
+        <dialog id="edit-{{ appointment.id }}" style="width: 90%; max-width: 700px; border: 1px solid var(--card-border); border-radius: 16px; padding: 0; background: var(--card-bg); color: var(--text-main);">
+            <div style="padding: 22px;">
+                <h3>Edit Appointment</h3>
+
+                <form method="POST" action="/appointments/{{ user.id }}/edit/{{ appointment.id }}?view={{ selected_view }}&mode={{ selected_mode }}">
+                    <label for="edit-title-{{ appointment.id }}">Title</label>
+                    <input type="text" id="edit-title-{{ appointment.id }}" name="title" value="{{ appointment.title }}" required>
+
+                    <label>Date</label>
+                    <div class="select-row">
+                        <select name="appointment_day" required>
+                            {% for day in days %}
+                                <option value="{{ day }}" {% if day == parts.day %}selected{% endif %}>{{ day }}</option>
+                            {% endfor %}
+                        </select>
+
+                        <select name="appointment_month" required>
+                            {% for month in months %}
+                                <option value="{{ month }}" {% if month == parts.month %}selected{% endif %}>{{ month }}</option>
+                            {% endfor %}
+                        </select>
+
+                        <select name="appointment_year" required>
+                            {% for year in years %}
+                                <option value="{{ year }}" {% if year == parts.year %}selected{% endif %}>{{ year }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <label>Time</label>
+                    <div class="select-row">
+                        <select name="appointment_hour" required>
+                            {% for hour in hours %}
+                                <option value="{{ hour }}" {% if hour == parts.hour %}selected{% endif %}>{{ hour }}</option>
+                            {% endfor %}
+                        </select>
+
+                        <select name="appointment_minute" required>
+                            {% for minute in minutes %}
+                                <option value="{{ minute }}" {% if minute == parts.minute %}selected{% endif %}>{{ minute }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <label for="edit-share-reason-{{ appointment.id }}">Reason for sharing</label>
+                    <select id="edit-share-reason-{{ appointment.id }}" name="share_reason">
+                        <option value="FYI" {% if appointment.share_reason == "FYI" %}selected{% endif %}>FYI</option>
+                        <option value="Needs help" {% if appointment.share_reason == "Needs help" %}selected{% endif %}>Needs help</option>
+                        <option value="Shared event" {% if appointment.share_reason == "Shared event" %}selected{% endif %}>Shared event</option>
+                    </select>
+
+                    <p>Share with:</p>
+                    {% if other_users %}
+                        {% for person in other_users %}
+                            {% set is_selected = appointment.shares | selectattr("user_id", "equalto", person.id) | list | length > 0 %}
+                            <label>
+                                <input type="checkbox" name="shared_with" value="{{ person.id }}" {% if is_selected %}checked{% endif %}>
+                                {{ person.name }}
+                            </label><br>
+                        {% endfor %}
+                    {% else %}
+                        <p>No other users yet.</p>
+                    {% endif %}
+
+                    <div class="form-actions" style="margin-top: 16px;">
+                        <button type="submit">Save changes</button>
+                        <button type="button" onclick="document.getElementById('edit-{{ appointment.id }}').close()">Cancel</button>
+                    </div>
+                </form>
+
+                <hr style="margin: 22px 0; border: none; border-top: 1px solid var(--card-border);">
+
+                <h4>Delete Appointment</h4>
+                <form method="POST" action="/appointments/{{ user.id }}/delete/{{ appointment.id }}?view={{ selected_view }}&mode={{ selected_mode }}">
+                    <p>Type <strong>yes</strong> to confirm deletion.</p>
+                    <input type="text" name="confirm_delete" required>
+                    <div style="margin-top: 12px;">
+                        <button type="submit">Delete permanently</button>
+                    </div>
+                </form>
+            </div>
+        </dialog>
+    {% endfor %}
+
+    <dialog id="settings-panel" class="settings-panel">
+        <div class="settings-panel-inner">
+            <h3>Settings</h3>
+
+            <form method="POST" action="/users/{{ user.id }}/preferences?mode={{ selected_mode }}">
+                <label for="default_view">Default view</label>
+                <select id="default_view" name="default_view">
+                    <option value="today" {% if user.default_view == "today" %}selected{% endif %}>Today</option>
+                    <option value="week" {% if user.default_view == "week" %}selected{% endif %}>Week</option>
+                    <option value="month" {% if user.default_view == "month" %}selected{% endif %}>Month</option>
+                </select>
+
+                <label for="theme">Theme</label>
+                <select id="theme" name="theme">
+                    <option value="light" {% if user.theme == "light" %}selected{% endif %}>Light</option>
+                    <option value="dark" {% if user.theme == "dark" %}selected{% endif %}>Dark</option>
+                </select>
+
+                <div class="form-actions" style="margin-top: 16px;">
+                    <button type="submit">Save settings</button>
+                    <button type="button" onclick="document.getElementById('settings-panel').close()">Close</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <script>
+        const settingsPanel = document.getElementById("settings-panel");
+
+        settingsPanel.addEventListener("click", function (event) {
+            const rect = settingsPanel.getBoundingClientRect();
+            const clickedInside =
+                rect.top <= event.clientY &&
+                event.clientY <= rect.top + rect.height &&
+                rect.left <= event.clientX &&
+                event.clientX <= rect.left + rect.width;
+
+            if (!clickedInside) {
+                settingsPanel.close();
+            }
+        });
+    </script>
+{% endblock %}
