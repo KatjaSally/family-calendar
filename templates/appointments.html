@@ -1,6 +1,7 @@
 {% extends "layout.html" %}
 
 {% block content %}
+    {% set month_suffix = "&month=" ~ current_month_key if selected_view == "month" else "" %}
     <div class="top-bar">
         <button type="button" class="settings-button" onclick="document.getElementById('settings-panel').showModal()">Settings</button>
     </div>
@@ -12,13 +13,13 @@
         <p class="button-group">
             <a
                 class="button-pill {% if selected_mode == 'my' %}is-active{% endif %}"
-                href="/appointments/{{ user.id }}?view={{ selected_view }}&mode=my"
+                href="/appointments/{{ user.id }}?view={{ selected_view }}&mode=my{{ month_suffix }}"
             >
                 My view
             </a>
             <a
                 class="button-pill {% if selected_mode == 'family' %}is-active{% endif %}"
-                href="/appointments/{{ user.id }}?view={{ selected_view }}&mode=family"
+                href="/appointments/{{ user.id }}?view={{ selected_view }}&mode=family{{ month_suffix }}"
             >
                 Family view
             </a>
@@ -33,7 +34,7 @@
                     {% if person.id == user.id %}
                         <strong>{{ person.name }}</strong>
                     {% else %}
-                        <a href="/appointments/{{ person.id }}?view={{ person.default_view }}&mode={{ selected_mode }}">{{ person.name }}</a>
+                        <a href="/appointments/{{ person.id }}?view={{ person.default_view }}&mode={{ selected_mode }}{% if person.default_view == 'month' %}&month={{ current_month_key }}{% endif %}">{{ person.name }}</a>
                     {% endif %}
                 </li>
             {% endfor %}
@@ -55,7 +56,7 @@
             </a>
             <a
                 class="button-pill {% if selected_view == 'month' %}is-active{% endif %}"
-                href="/appointments/{{ user.id }}?view=month&mode={{ selected_mode }}"
+                href="/appointments/{{ user.id }}?view=month&mode={{ selected_mode }}&month={{ current_month_key }}"
             >
                 Month
             </a>
@@ -77,13 +78,13 @@
                         {% endif %}
 
                         <div style="margin-top: 10px;">
-                            <form method="POST" action="/appointments/{{ user.id }}/accept/{{ appointment.id }}?view={{ selected_view }}&mode={{ selected_mode }}">
+                            <form method="POST" action="/appointments/{{ user.id }}/accept/{{ appointment.id }}?view={{ selected_view }}&mode={{ selected_mode }}{{ month_suffix }}">
                                 <button type="submit">Accept</button>
                             </form>
                         </div>
 
                         <div style="margin-top: 10px;">
-                            <form method="POST" action="/appointments/{{ user.id }}/decline/{{ appointment.id }}?view={{ selected_view }}&mode={{ selected_mode }}">
+                            <form method="POST" action="/appointments/{{ user.id }}/decline/{{ appointment.id }}?view={{ selected_view }}&mode={{ selected_mode }}{{ month_suffix }}">
                                 <label for="decline_note_{{ appointment.id }}">Decline note (optional)</label>
                                 <input type="text" id="decline_note_{{ appointment.id }}" name="decline_note">
                                 <button type="submit">Decline</button>
@@ -312,7 +313,11 @@
             </div>
 
         {% elif selected_view == "month" %}
-            <h4>{{ current_month_label }}</h4>
+            <div class="button-group" style="margin-bottom: 16px;">
+                <a class="button-pill" href="/appointments/{{ user.id }}?view=month&mode={{ selected_mode }}&month={{ previous_month_key }}">Previous month</a>
+                <span class="button-pill is-active">{{ current_month_label }}</span>
+                <a class="button-pill" href="/appointments/{{ user.id }}?view=month&mode={{ selected_mode }}&month={{ next_month_key }}">Next month</a>
+            </div>
             <div class="scroll-y desktop-only" style="max-height: 75vh;">
                 <div class="scroll-x">
                     <table style="min-width: 760px; width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 10px; border-radius: 14px; overflow: hidden;">
@@ -501,7 +506,7 @@
             <div style="padding: 22px;">
                 <h3>Edit Appointment</h3>
 
-                <form method="POST" action="/appointments/{{ user.id }}/edit/{{ appointment.id }}?view={{ selected_view }}&mode={{ selected_mode }}">
+                <form method="POST" action="/appointments/{{ user.id }}/edit/{{ appointment.id }}?view={{ selected_view }}&mode={{ selected_mode }}{{ month_suffix }}">
                     <label for="edit-title-{{ appointment.id }}">Title</label>
                     <input type="text" id="edit-title-{{ appointment.id }}" name="title" value="{{ appointment.title }}" required>
 
@@ -552,7 +557,7 @@
                 <hr style="margin: 22px 0; border: none; border-top: 1px solid var(--card-border);">
 
                 <h4>Delete Appointment</h4>
-                <form method="POST" action="/appointments/{{ user.id }}/delete/{{ appointment.id }}?view={{ selected_view }}&mode={{ selected_mode }}">
+                <form method="POST" action="/appointments/{{ user.id }}/delete/{{ appointment.id }}?view={{ selected_view }}&mode={{ selected_mode }}{{ month_suffix }}">
                     <p>Type <strong>yes</strong> to confirm deletion.</p>
                     <input type="text" name="confirm_delete" required>
                     <div style="margin-top: 12px;">
@@ -567,7 +572,7 @@
         <div class="settings-panel-inner">
             <h3>Settings</h3>
 
-            <form method="POST" action="/users/{{ user.id }}/preferences?mode={{ selected_mode }}">
+            <form method="POST" action="/users/{{ user.id }}/preferences?mode={{ selected_mode }}{{ month_suffix }}">
                 <label for="default_view">Default view</label>
                 <select id="default_view" name="default_view">
                     <option value="today" {% if user.default_view == "today" %}selected{% endif %}>Today</option>

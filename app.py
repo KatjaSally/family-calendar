@@ -176,6 +176,25 @@ def build_appointment_time_from_form(form_data):
     return f"{appointment_date}T{appointment_hour}:{appointment_minute}"
 
 
+def parse_month_key(month_key, fallback_date):
+    try:
+        parsed = datetime.strptime(month_key, "%Y-%m")
+        return parsed.date().replace(day=1)
+    except (TypeError, ValueError):
+        return fallback_date.replace(day=1)
+
+
+def build_appointments_url(user_id, view, mode, month_key=None):
+    params = {
+        "user_id": user_id,
+        "view": view,
+        "mode": mode,
+    }
+    if view == "month" and month_key:
+        params["month"] = month_key
+    return url_for("appointments", **params)
+
+
 @app.route("/")
 def home():
     users = User.query.order_by(User.name).all()
@@ -208,14 +227,7 @@ def create_user():
         )
         db.session.add(new_user)
         db.session.commit()
-        return redirect(
-            url_for(
-                "appointments",
-                user_id=new_user.id,
-                view=new_user.default_view,
-                mode="my"
-            )
-        )
+        return redirect(build_appointments_url(new_user.id, new_user.default_view, "my"))
 
     return redirect(url_for("home"))
 
@@ -254,14 +266,9 @@ def save_preferences(user_id):
     user.theme = theme
     db.session.commit()
 
-    return redirect(
-        url_for(
-            "appointments",
-            user_id=user.id,
-            view=user.default_view,
-            mode=request.args.get("mode", "my")
-        )
-    )
+    selected_mode = request.args.get("mode", "my")
+    month_key = request.args.get("month")
+    return redirect(build_appointments_url(user.id, user.default_view, selected_mode, month_key))
 
 
 @app.route("/appointments/<int:user_id>", methods=["GET", "POST"])
@@ -296,14 +303,10 @@ def appointments(user_id):
 
         db.session.commit()
 
-        return redirect(
-            url_for(
-                "appointments",
-                user_id=user.id,
-                view=request.args.get("view", user.default_view),
-                mode=request.args.get("mode", "my")
-            )
-        )
+        selected_view = request.args.get("view", user.default_view)
+        selected_mode = request.args.get("mode", "my")
+        month_key = request.args.get("month")
+        return redirect(build_appointments_url(user.id, selected_view, selected_mode, month_key))
 
     selected_view = request.args.get("view", user.default_view)
     if selected_view not in ["today", "week", "month"]:
@@ -317,8 +320,10 @@ def appointments(user_id):
     today_date = now.date()
     week_start = today_date - timedelta(days=today_date.weekday())
     week_end = week_start + timedelta(days=6)
-    month_start = today_date.replace(day=1)
+    selected_month_date = parse_month_key(request.args.get("month"), today_date)
+    month_start = selected_month_date.replace(day=1)
     next_month = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
+    previous_month = (month_start - timedelta(days=1)).replace(day=1)
     month_end = next_month - timedelta(days=1)
 
     own_appointments = Appointment.query.filter_by(user_id=user.id).all()
@@ -401,7 +406,10 @@ def appointments(user_id):
         month_weeks=month_weeks,
         month_cells=month_cells,
         weekday_names=weekday_names,
-        current_month_label=today_date.strftime("%B %Y"),
+        current_month_label=month_start.strftime("%B %Y"),
+        current_month_key=month_start.strftime("%Y-%m"),
+        previous_month_key=previous_month.strftime("%Y-%m"),
+        next_month_key=next_month.strftime("%Y-%m"),
         user_color_map=user_color_map,
         editable_appointments=editable_appointments,
         editable_data=editable_data
@@ -414,14 +422,10 @@ def edit_appointment(user_id, appointment_id):
     appointment = Appointment.query.get_or_404(appointment_id)
 
     if appointment.user_id != user.id:
-        return redirect(
-            url_for(
-                "appointments",
-                user_id=user.id,
-                view=request.args.get("view", user.default_view),
-                mode=request.args.get("mode", "my")
-            )
-        )
+        selected_view = request.args.get("view", user.default_view)
+        selected_mode = request.args.get("mode", "my")
+        month_key = request.args.get("month")
+        return redirect(build_appointments_url(user.id, selected_view, selected_mode, month_key))
 
     appointment.title = request.form["title"]
     appointment.appointment_time = build_appointment_time_from_form(request.form)
@@ -448,14 +452,10 @@ def edit_appointment(user_id, appointment_id):
 
     db.session.commit()
 
-    return redirect(
-        url_for(
-            "appointments",
-            user_id=user.id,
-            view=request.args.get("view", user.default_view),
-            mode=request.args.get("mode", "my")
-        )
-    )
+    selected_view = request.args.get("view", user.default_view)
+    selected_mode = request.args.get("mode", "my")
+    month_key = request.args.get("month")
+    return redirect(build_appointments_url(user.id, selected_view, selected_mode, month_key))
 
 
 @app.route("/appointments/<int:user_id>/delete/<int:appointment_id>", methods=["POST"])
@@ -467,14 +467,10 @@ def delete_appointment(user_id, appointment_id):
         db.session.delete(appointment)
         db.session.commit()
 
-    return redirect(
-        url_for(
-            "appointments",
-            user_id=user.id,
-            view=request.args.get("view", user.default_view),
-            mode=request.args.get("mode", "my")
-        )
-    )
+    selected_view = request.args.get("view", user.default_view)
+    selected_mode = request.args.get("mode", "my")
+    month_key = request.args.get("month")
+    return redirect(build_appointments_url(user.id, selected_view, selected_mode, month_key))
 
 
 @app.route("/appointments/<int:user_id>/accept/<int:appointment_id>", methods=["POST"])
@@ -488,14 +484,10 @@ def accept_appointment(user_id, appointment_id):
     share.note = ""
     db.session.commit()
 
-    return redirect(
-        url_for(
-            "appointments",
-            user_id=user_id,
-            view=request.args.get("view", user.default_view),
-            mode=request.args.get("mode", "my")
-        )
-    )
+    selected_view = request.args.get("view", user.default_view)
+    selected_mode = request.args.get("mode", "my")
+    month_key = request.args.get("month")
+    return redirect(build_appointments_url(user_id, selected_view, selected_mode, month_key))
 
 
 @app.route("/appointments/<int:user_id>/decline/<int:appointment_id>", methods=["POST"])
@@ -509,14 +501,10 @@ def decline_appointment(user_id, appointment_id):
     share.note = request.form.get("decline_note", "").strip()
     db.session.commit()
 
-    return redirect(
-        url_for(
-            "appointments",
-            user_id=user_id,
-            view=request.args.get("view", user.default_view),
-            mode=request.args.get("mode", "my")
-        )
-    )
+    selected_view = request.args.get("view", user.default_view)
+    selected_mode = request.args.get("mode", "my")
+    month_key = request.args.get("month")
+    return redirect(build_appointments_url(user_id, selected_view, selected_mode, month_key))
 
 
 if __name__ == "__main__":
