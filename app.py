@@ -160,12 +160,20 @@ def build_user_color_map(users):
 def appointment_to_form_parts(appointment):
     dt = parse_appointment_time(appointment)
     return {
+        "iso_date": dt.strftime("%Y-%m-%d"),
         "day": f"{dt.day:02d}",
         "month": f"{dt.month:02d}",
         "year": str(dt.year),
         "hour": f"{dt.hour:02d}",
         "minute": f"{dt.minute:02d}",
     }
+
+
+def build_appointment_time_from_form(form_data):
+    appointment_date = form_data["appointment_date"]
+    appointment_hour = form_data["appointment_hour"]
+    appointment_minute = form_data["appointment_minute"]
+    return f"{appointment_date}T{appointment_hour}:{appointment_minute}"
 
 
 @app.route("/")
@@ -262,16 +270,7 @@ def appointments(user_id):
 
     if request.method == "POST":
         title = request.form["title"]
-        appointment_day = request.form["appointment_day"]
-        appointment_month = request.form["appointment_month"]
-        appointment_year = request.form["appointment_year"]
-        appointment_hour = request.form["appointment_hour"]
-        appointment_minute = request.form["appointment_minute"]
-
-        appointment_time = (
-            f"{appointment_year}-{appointment_month}-{appointment_day}"
-            f"T{appointment_hour}:{appointment_minute}"
-        )
+        appointment_time = build_appointment_time_from_form(request.form)
 
         share_reason = request.form.get("share_reason", "")
         selected_user_ids = request.form.getlist("shared_with")
@@ -425,15 +424,7 @@ def edit_appointment(user_id, appointment_id):
         )
 
     appointment.title = request.form["title"]
-    appointment_day = request.form["appointment_day"]
-    appointment_month = request.form["appointment_month"]
-    appointment_year = request.form["appointment_year"]
-    appointment_hour = request.form["appointment_hour"]
-    appointment_minute = request.form["appointment_minute"]
-    appointment.appointment_time = (
-        f"{appointment_year}-{appointment_month}-{appointment_day}"
-        f"T{appointment_hour}:{appointment_minute}"
-    )
+    appointment.appointment_time = build_appointment_time_from_form(request.form)
 
     selected_user_ids = {int(user_id_value) for user_id_value in request.form.getlist("shared_with")}
     appointment.share_reason = request.form.get("share_reason", "") if selected_user_ids else ""

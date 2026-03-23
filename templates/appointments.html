@@ -448,29 +448,8 @@
             <label for="title">Title</label>
             <input type="text" id="title" name="title" required>
 
-            <label>Date</label>
-            <div class="select-row">
-                <select name="appointment_day" required>
-                    <option value="" selected disabled>Day</option>
-                    {% for day in days %}
-                        <option value="{{ day }}">{{ day }}</option>
-                    {% endfor %}
-                </select>
-
-                <select name="appointment_month" required>
-                    <option value="" selected disabled>Month</option>
-                    {% for month in months %}
-                        <option value="{{ month }}">{{ month }}</option>
-                    {% endfor %}
-                </select>
-
-                <select name="appointment_year" required>
-                    <option value="" selected disabled>Year</option>
-                    {% for year in years %}
-                        <option value="{{ year }}">{{ year }}</option>
-                    {% endfor %}
-                </select>
-            </div>
+            <label for="appointment_date">Date</label>
+            <input type="date" id="appointment_date" name="appointment_date" required>
 
             <label>Time</label>
             <div class="select-row">
@@ -526,26 +505,8 @@
                     <label for="edit-title-{{ appointment.id }}">Title</label>
                     <input type="text" id="edit-title-{{ appointment.id }}" name="title" value="{{ appointment.title }}" required>
 
-                    <label>Date</label>
-                    <div class="select-row">
-                        <select name="appointment_day" required>
-                            {% for day in days %}
-                                <option value="{{ day }}" {% if day == parts.day %}selected{% endif %}>{{ day }}</option>
-                            {% endfor %}
-                        </select>
-
-                        <select name="appointment_month" required>
-                            {% for month in months %}
-                                <option value="{{ month }}" {% if month == parts.month %}selected{% endif %}>{{ month }}</option>
-                            {% endfor %}
-                        </select>
-
-                        <select name="appointment_year" required>
-                            {% for year in years %}
-                                <option value="{{ year }}" {% if year == parts.year %}selected{% endif %}>{{ year }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
+                    <label for="edit-date-{{ appointment.id }}">Date</label>
+                    <input type="date" id="edit-date-{{ appointment.id }}" name="appointment_date" value="{{ parts.iso_date }}" required>
 
                     <label>Time</label>
                     <div class="select-row">
