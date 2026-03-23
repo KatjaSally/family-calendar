@@ -11,6 +11,12 @@
             <label for="join_code">Join code</label>
             <input type="text" id="join_code" name="join_code" required>
 
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required>
+
+            <label for="confirm_password">Repeat password</label>
+            <input type="password" id="confirm_password" name="confirm_password" required>
+
             <button type="submit">Create My Profile</button>
         </form>
 
@@ -29,10 +35,21 @@
             <ul class="tap-list">
                 {% for user in users %}
                     <li class="list-row">
-                        <a href="/appointments/{{ user.id }}?view=today">{{ user.name }}</a>
-                        <form method="POST" action="/users/{{ user.id }}/delete" onsubmit="return confirm('Delete {{ user.name }} and all of that profile\\'s appointments?');">
-                            <button type="submit" class="danger-button">Delete profile</button>
-                        </form>
+                        <div>
+                            <strong>{{ user.name }}</strong>
+                            {% if selected_user and selected_user.id == user.id %}
+                                <form method="POST" action="/login/{{ user.id }}" style="margin-top: 10px;">
+                                    <label for="login-password-{{ user.id }}">Password</label>
+                                    <input type="password" id="login-password-{{ user.id }}" name="password" required>
+                                    <button type="submit">Open profile</button>
+                                </form>
+                                {% if login_error %}
+                                    <p style="color: #b91c1c;">{{ login_error }}</p>
+                                {% endif %}
+                            {% else %}
+                                <p><a href="/login/{{ user.id }}">Open profile</a></p>
+                            {% endif %}
+                        </div>
                     </li>
                 {% endfor %}
             </ul>

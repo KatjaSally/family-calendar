@@ -3,8 +3,10 @@ from datetime import datetime, timedelta
 import calendar
 
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, session, url_for
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
+from werkzeug.security import check_password_hash, generate_password_hash
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 ENV_PATH = os.path.join(BASE_DIR, ".env")
@@ -18,6 +20,7 @@ if not database_url:
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "family-calendar-secret")
 db = SQLAlchemy(app)
 
 JOIN_CODE = os.getenv("JOIN_CODE", "family123")
@@ -35,6 +38,7 @@ USER_COLORS = [
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False, default="")
     default_view = db.Column(db.String(20), nullable=False, default="today")
     theme = db.Column(db.String(20), nullable=False, default="light")
 
@@ -66,6 +70,10 @@ class Appointment(db.Model):
 
 with app.app_context():
     db.create_all()
+    db.session.execute(
+        text("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255) NOT NULL DEFAULT ''")
+    )
+    db.session.commit()
 
 
 def parse_appointment_time(appointment):
@@ -195,6 +203,16 @@ def build_appointments_url(user_id, view, mode, month_key=None):
     return url_for("appointments", **params)
 
 
+def logged_in_user_id():
+    return session.get("user_id")
+
+
+def require_profile_access(user_id):
+    if logged_in_user_id() != user_id:
+        return redirect(url_for("login", user_id=user_id))
+    return None
+
+
 @app.route("/")
 def home():
     users = User.query.order_by(User.name).all()
@@ -202,7 +220,9 @@ def home():
         "register.html",
         users=users,
         error_message="",
-        status_message=request.args.get("status", "")
+        status_message=request.args.get("status", ""),
+        login_error="",
+        selected_user=None
     )
 
 
@@ -210,30 +230,88 @@ def home():
 def create_user():
     name = request.form["name"].strip()
     join_code = request.form["join_code"].strip()
+    password = request.form["password"]
+    confirm_password = request.form["confirm_password"]
+
+    users = User.query.order_by(User.name).all()
 
     if join_code != JOIN_CODE:
-        users = User.query.order_by(User.name).all()
         return render_template(
             "register.html",
             users=users,
-            error_message="That join code is not correct."
+            error_message="That join code is not correct.",
+            status_message="",
+            login_error="",
+            selected_user=None
         )
 
-    if name:
+    if password != confirm_password:
+        return render_template(
+            "register.html",
+            users=users,
+            error_message="Passwords do not match.",
+            status_message="",
+            login_error="",
+            selected_user=None
+        )
+
+    if name and password:
         new_user = User(
             name=name,
+            password_hash=generate_password_hash(password),
             default_view="today",
             theme="light"
         )
         db.session.add(new_user)
         db.session.commit()
+        session["user_id"] = new_user.id
         return redirect(build_appointments_url(new_user.id, new_user.default_view, "my"))
 
     return redirect(url_for("home"))
 
 
+@app.route("/login/<int:user_id>", methods=["GET", "POST"])
+def login(user_id):
+    user = User.query.get_or_404(user_id)
+    users = User.query.order_by(User.name).all()
+
+    if request.method == "POST":
+        password = request.form["password"]
+        if check_password_hash(user.password_hash, password):
+            session["user_id"] = user.id
+            return redirect(build_appointments_url(user.id, user.default_view, "my"))
+
+        return render_template(
+            "register.html",
+            users=users,
+            error_message="",
+            status_message="",
+            login_error="That password is not correct.",
+            selected_user=user
+        )
+
+    return render_template(
+        "register.html",
+        users=users,
+        error_message="",
+        status_message="",
+        login_error="",
+        selected_user=user
+    )
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return redirect(url_for("home", status="You were logged out."))
+
+
 @app.route("/users/<int:user_id>/delete", methods=["POST"])
 def delete_user(user_id):
+    access_redirect = require_profile_access(user_id)
+    if access_redirect:
+        return access_redirect
+
     user = User.query.get_or_404(user_id)
     user_name = user.name
 
@@ -251,6 +329,10 @@ def delete_user(user_id):
 
 @app.route("/users/<int:user_id>/preferences", methods=["POST"])
 def save_preferences(user_id):
+    access_redirect = require_profile_access(user_id)
+    if access_redirect:
+        return access_redirect
+
     user = User.query.get_or_404(user_id)
 
     default_view = request.form.get("default_view", "today")
@@ -273,6 +355,10 @@ def save_preferences(user_id):
 
 @app.route("/appointments/<int:user_id>", methods=["GET", "POST"])
 def appointments(user_id):
+    access_redirect = require_profile_access(user_id)
+    if access_redirect:
+        return access_redirect
+
     user = User.query.get_or_404(user_id)
 
     if request.method == "POST":
@@ -418,6 +504,10 @@ def appointments(user_id):
 
 @app.route("/appointments/<int:user_id>/edit/<int:appointment_id>", methods=["POST"])
 def edit_appointment(user_id, appointment_id):
+    access_redirect = require_profile_access(user_id)
+    if access_redirect:
+        return access_redirect
+
     user = User.query.get_or_404(user_id)
     appointment = Appointment.query.get_or_404(appointment_id)
 
@@ -460,6 +550,10 @@ def edit_appointment(user_id, appointment_id):
 
 @app.route("/appointments/<int:user_id>/delete/<int:appointment_id>", methods=["POST"])
 def delete_appointment(user_id, appointment_id):
+    access_redirect = require_profile_access(user_id)
+    if access_redirect:
+        return access_redirect
+
     user = User.query.get_or_404(user_id)
     appointment = Appointment.query.get_or_404(appointment_id)
 
@@ -475,6 +569,10 @@ def delete_appointment(user_id, appointment_id):
 
 @app.route("/appointments/<int:user_id>/accept/<int:appointment_id>", methods=["POST"])
 def accept_appointment(user_id, appointment_id):
+    access_redirect = require_profile_access(user_id)
+    if access_redirect:
+        return access_redirect
+
     share = AppointmentShare.query.filter_by(
         appointment_id=appointment_id,
         user_id=user_id
@@ -492,6 +590,10 @@ def accept_appointment(user_id, appointment_id):
 
 @app.route("/appointments/<int:user_id>/decline/<int:appointment_id>", methods=["POST"])
 def decline_appointment(user_id, appointment_id):
+    access_redirect = require_profile_access(user_id)
+    if access_redirect:
+        return access_redirect
+
     share = AppointmentShare.query.filter_by(
         appointment_id=appointment_id,
         user_id=user_id

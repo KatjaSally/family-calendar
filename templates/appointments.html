@@ -3,7 +3,12 @@
 {% block content %}
     {% set month_suffix = "&month=" ~ current_month_key if selected_view == "month" else "" %}
     <div class="top-bar">
-        <button type="button" class="settings-button" onclick="document.getElementById('settings-panel').showModal()">Settings</button>
+        <div class="form-actions">
+            <form method="POST" action="/logout">
+                <button type="submit" class="settings-button">Log out</button>
+            </form>
+            <button type="button" class="settings-button" onclick="document.getElementById('settings-panel').showModal()">Settings</button>
+        </div>
     </div>
 
     <div class="card">
