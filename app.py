@@ -203,6 +203,16 @@ def build_appointments_url(user_id, view, mode, month_key=None):
     return url_for("appointments", **params)
 
 
+def build_dashboard_url(user_id):
+    return url_for("dashboard", user_id=user_id)
+
+
+def build_form_choices():
+    hours = [f"{hour:02d}" for hour in range(0, 24)]
+    minutes = [f"{minute:02d}" for minute in range(0, 60, 5)]
+    return hours, minutes
+
+
 def logged_in_user_id():
     return session.get("user_id")
 
@@ -211,6 +221,17 @@ def require_profile_access(user_id):
     if logged_in_user_id() != user_id:
         return redirect(url_for("login", user_id=user_id))
     return None
+
+
+def upcoming_appointments_for_user(user):
+    now = datetime.now()
+    appointments = Appointment.query.filter_by(user_id=user.id).all() + accepted_for_user(user.id)
+    upcoming = [
+        appointment for appointment in appointments
+        if parse_appointment_time(appointment) >= now
+    ]
+    upcoming.sort(key=parse_appointment_time)
+    return upcoming
 
 
 @app.route("/")
@@ -265,7 +286,7 @@ def create_user():
         db.session.add(new_user)
         db.session.commit()
         session["user_id"] = new_user.id
-        return redirect(build_appointments_url(new_user.id, new_user.default_view, "my"))
+        return redirect(build_dashboard_url(new_user.id))
 
     return redirect(url_for("home"))
 
@@ -279,7 +300,7 @@ def login(user_id):
         password = request.form["password"]
         if check_password_hash(user.password_hash, password):
             session["user_id"] = user.id
-            return redirect(build_appointments_url(user.id, user.default_view, "my"))
+            return redirect(build_dashboard_url(user.id))
 
         return render_template(
             "register.html",
@@ -304,6 +325,25 @@ def login(user_id):
 def logout():
     session.clear()
     return redirect(url_for("home", status="You were logged out."))
+
+
+@app.route("/dashboard/<int:user_id>")
+def dashboard(user_id):
+    access_redirect = require_profile_access(user_id)
+    if access_redirect:
+        return access_redirect
+
+    user = User.query.get_or_404(user_id)
+    pending_appointments = pending_for_user(user.id)
+    pending_appointments.sort(key=parse_appointment_time)
+    next_appointments = upcoming_appointments_for_user(user)[:3]
+
+    return render_template(
+        "dashboard.html",
+        user=user,
+        pending_appointments=pending_appointments,
+        next_appointments=next_appointments
+    )
 
 
 @app.route("/users/<int:user_id>/delete", methods=["POST"])
@@ -348,9 +388,7 @@ def save_preferences(user_id):
     user.theme = theme
     db.session.commit()
 
-    selected_mode = request.args.get("mode", "my")
-    month_key = request.args.get("month")
-    return redirect(build_appointments_url(user.id, user.default_view, selected_mode, month_key))
+    return redirect(build_dashboard_url(user.id))
 
 
 @app.route("/users/<int:user_id>/rename", methods=["POST"])
@@ -366,14 +404,11 @@ def rename_user(user_id):
         user.name = new_name
         db.session.commit()
 
-    selected_view = request.args.get("view", user.default_view)
-    selected_mode = request.args.get("mode", "my")
-    month_key = request.args.get("month")
-    return redirect(build_appointments_url(user.id, selected_view, selected_mode, month_key))
+    return redirect(build_dashboard_url(user.id))
 
 
-@app.route("/appointments/<int:user_id>", methods=["GET", "POST"])
-def appointments(user_id):
+@app.route("/appointments/<int:user_id>/new", methods=["GET", "POST"])
+def add_appointment(user_id):
     access_redirect = require_profile_access(user_id)
     if access_redirect:
         return access_redirect
@@ -407,11 +442,27 @@ def appointments(user_id):
             db.session.add(share)
 
         db.session.commit()
+        return redirect(build_appointments_url(user.id, user.default_view, "my"))
 
-        selected_view = request.args.get("view", user.default_view)
-        selected_mode = request.args.get("mode", "my")
-        month_key = request.args.get("month")
-        return redirect(build_appointments_url(user.id, selected_view, selected_mode, month_key))
+    other_users = User.query.filter(User.id != user.id).order_by(User.name).all()
+    hours, minutes = build_form_choices()
+
+    return render_template(
+        "add_appointment.html",
+        user=user,
+        other_users=other_users,
+        hours=hours,
+        minutes=minutes
+    )
+
+
+@app.route("/appointments/<int:user_id>", methods=["GET", "POST"])
+def appointments(user_id):
+    access_redirect = require_profile_access(user_id)
+    if access_redirect:
+        return access_redirect
+
+    user = User.query.get_or_404(user_id)
 
     selected_view = request.args.get("view", user.default_view)
     if selected_view not in ["today", "week", "month"]:
@@ -476,12 +527,7 @@ def appointments(user_id):
     user_color_map = build_user_color_map(all_users)
     hour_labels = [f"{hour:02d}:00" for hour in range(24)]
 
-    days = [f"{day:02d}" for day in range(1, 32)]
-    months = [f"{month:02d}" for month in range(1, 13)]
-    current_year = now.year
-    years = [str(current_year), str(current_year + 1), str(current_year + 2)]
-    hours = [f"{hour:02d}" for hour in range(0, 24)]
-    minutes = [f"{minute:02d}" for minute in range(0, 60, 5)]
+    hours, minutes = build_form_choices()
     weekday_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
     editable_appointments = Appointment.query.filter_by(user_id=user.id).order_by(Appointment.appointment_time).all()
@@ -501,9 +547,6 @@ def appointments(user_id):
         selected_mode=selected_mode,
         timeline_appointments=timeline_appointments,
         hour_labels=hour_labels,
-        days=days,
-        months=months,
-        years=years,
         hours=hours,
         minutes=minutes,
         week_days=week_days,

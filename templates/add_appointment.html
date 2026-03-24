@@ -1,0 +1,60 @@
+{% extends "layout.html" %}
+
+{% block content %}
+    <div class="top-bar">
+        <a class="button-pill" href="/dashboard/{{ user.id }}">Back Home</a>
+    </div>
+
+    <div class="card">
+        <h2>Add Appointment</h2>
+
+        <form method="POST">
+            <label for="title">Title</label>
+            <input type="text" id="title" name="title" required>
+
+            <label for="appointment_date">Date</label>
+            <input type="date" id="appointment_date" name="appointment_date" required>
+
+            <label>Time</label>
+            <div class="select-row">
+                <select name="appointment_hour" required>
+                    <option value="" selected disabled>Hour</option>
+                    {% for hour in hours %}
+                        <option value="{{ hour }}">{{ hour }}</option>
+                    {% endfor %}
+                </select>
+
+                <select name="appointment_minute" required>
+                    <option value="" selected disabled>Minute</option>
+                    {% for minute in minutes %}
+                        <option value="{{ minute }}">{{ minute }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <label for="share_reason">Reason for sharing</label>
+            <select id="share_reason" name="share_reason">
+                <option value="FYI">FYI</option>
+                <option value="Needs help">Needs help</option>
+                <option value="Shared event">Shared event</option>
+            </select>
+
+            <p>Share with:</p>
+            {% if other_users %}
+                {% for person in other_users %}
+                    <label>
+                        <input type="checkbox" name="shared_with" value="{{ person.id }}">
+                        {{ person.name }}
+                    </label><br>
+                {% endfor %}
+            {% else %}
+                <p>No other users yet.</p>
+            {% endif %}
+
+            <div class="form-actions" style="margin-top: 16px;">
+                <button type="submit">Save Appointment</button>
+                <a class="button-pill" href="/dashboard/{{ user.id }}">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock %}

@@ -4,10 +4,8 @@
     {% set month_suffix = "&month=" ~ current_month_key if selected_view == "month" else "" %}
     <div class="top-bar">
         <div class="form-actions">
-            <form method="POST" action="/logout">
-                <button type="submit" class="settings-button">Log out</button>
-            </form>
-            <button type="button" class="settings-button" onclick="document.getElementById('settings-panel').showModal()">Settings</button>
+            <a class="button-pill" href="/dashboard/{{ user.id }}">Back Home</a>
+            <a class="button-pill" href="/appointments/{{ user.id }}/new">Add Appointment</a>
         </div>
     </div>
 
@@ -29,22 +27,6 @@
                 Family view
             </a>
         </p>
-
-        <div class="section-space"></div>
-
-        <h3>Switch User</h3>
-        <ul class="tap-list">
-            {% for person in users %}
-                <li>
-                    {% if person.id == user.id %}
-                        <strong>{{ person.name }}</strong>
-                    {% else %}
-                        <a href="/appointments/{{ person.id }}?view={{ person.default_view }}&mode={{ selected_mode }}{% if person.default_view == 'month' %}&month={{ current_month_key }}{% endif %}">{{ person.name }}</a>
-                    {% endif %}
-                </li>
-            {% endfor %}
-        </ul>
-
         <h3>View</h3>
         <p class="button-group">
             <a
@@ -391,59 +373,6 @@
         {% endif %}
     </div>
 
-    <div class="card">
-        <h3>Add Appointment</h3>
-        <form method="POST">
-            <label for="title">Title</label>
-            <input type="text" id="title" name="title" required>
-
-            <label for="appointment_date">Date</label>
-            <input type="date" id="appointment_date" name="appointment_date" required>
-
-            <label>Time</label>
-            <div class="select-row">
-                <select name="appointment_hour" required>
-                    <option value="" selected disabled>Hour</option>
-                    {% for hour in hours %}
-                        <option value="{{ hour }}">{{ hour }}</option>
-                    {% endfor %}
-                </select>
-
-                <select name="appointment_minute" required>
-                    <option value="" selected disabled>Minute</option>
-                    {% for minute in minutes %}
-                        <option value="{{ minute }}">{{ minute }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <label for="share_reason">Reason for sharing</label>
-            <select id="share_reason" name="share_reason">
-                <option value="FYI">FYI</option>
-                <option value="Needs help">Needs help</option>
-                <option value="Shared event">Shared event</option>
-            </select>
-
-            <p>Share with:</p>
-            {% if other_users %}
-                {% for person in other_users %}
-                    <label>
-                        <input type="checkbox" name="shared_with" value="{{ person.id }}">
-                        {{ person.name }}
-                    </label><br>
-                {% endfor %}
-            {% else %}
-                <p>No other users yet.</p>
-            {% endif %}
-
-            <button type="submit">Save Appointment</button>
-        </form>
-    </div>
-
-    <div class="card tight-card">
-        <p><a href="/">Back to user list</a></p>
-    </div>
-
     {% for appointment in editable_appointments %}
         {% set parts = editable_data[appointment.id] %}
         <dialog id="edit-{{ appointment.id }}" style="width: 90%; max-width: 700px; border: 1px solid var(--card-border); border-radius: 16px; padding: 0; background: var(--card-bg); color: var(--text-main);">
@@ -512,57 +441,4 @@
         </dialog>
     {% endfor %}
 
-    <dialog id="settings-panel" class="settings-panel">
-        <div class="settings-panel-inner">
-            <h3>Settings</h3>
-
-            <form method="POST" action="/users/{{ user.id }}/rename?view={{ selected_view }}&mode={{ selected_mode }}{{ month_suffix }}">
-                <label for="profile_name">Profile name</label>
-                <input type="text" id="profile_name" name="name" value="{{ user.name }}" required>
-
-                <div class="form-actions" style="margin-top: 16px; margin-bottom: 18px;">
-                    <button type="submit">Save name</button>
-                </div>
-            </form>
-
-            <hr style="margin: 18px 0; border: none; border-top: 1px solid var(--card-border);">
-
-            <form method="POST" action="/users/{{ user.id }}/preferences?mode={{ selected_mode }}{{ month_suffix }}">
-                <label for="default_view">Default view</label>
-                <select id="default_view" name="default_view">
-                    <option value="today" {% if user.default_view == "today" %}selected{% endif %}>Today</option>
-                    <option value="week" {% if user.default_view == "week" %}selected{% endif %}>Week</option>
-                    <option value="month" {% if user.default_view == "month" %}selected{% endif %}>Month</option>
-                </select>
-
-                <label for="theme">Theme</label>
-                <select id="theme" name="theme">
-                    <option value="light" {% if user.theme == "light" %}selected{% endif %}>Light</option>
-                    <option value="dark" {% if user.theme == "dark" %}selected{% endif %}>Dark</option>
-                </select>
-
-                <div class="form-actions" style="margin-top: 16px;">
-                    <button type="submit">Save settings</button>
-                    <button type="button" onclick="document.getElementById('settings-panel').close()">Close</button>
-                </div>
-            </form>
-        </div>
-    </dialog>
-
-    <script>
-        const settingsPanel = document.getElementById("settings-panel");
-
-        settingsPanel.addEventListener("click", function (event) {
-            const rect = settingsPanel.getBoundingClientRect();
-            const clickedInside =
-                rect.top <= event.clientY &&
-                event.clientY <= rect.top + rect.height &&
-                rect.left <= event.clientX &&
-                event.clientX <= rect.left + rect.width;
-
-            if (!clickedInside) {
-                settingsPanel.close();
-            }
-        });
-    </script>
 {% endblock %}

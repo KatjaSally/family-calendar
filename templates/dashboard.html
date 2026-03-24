@@ -1,0 +1,103 @@
+{% extends "layout.html" %}
+
+{% block content %}
+    <div class="top-bar">
+        <button type="button" class="settings-button" onclick="document.getElementById('settings-panel').showModal()">Settings</button>
+    </div>
+
+    <div class="card">
+        <h2>{{ user.name }}</h2>
+        <p class="muted">Default view: {{ user.default_view|capitalize }}</p>
+    </div>
+
+    <div class="card">
+        <h3>What would you like to do?</h3>
+        <div class="button-group">
+            <a class="button-pill is-active" href="/appointments/{{ user.id }}?view={{ user.default_view }}&mode=my">Open Calendar</a>
+            <a class="button-pill" href="/appointments/{{ user.id }}/new">Add Appointment</a>
+        </div>
+    </div>
+
+    {% if pending_appointments %}
+        <div class="card">
+            <h3>Needs Attention</h3>
+            <p>{{ pending_appointments|length }} pending invitation{% if pending_appointments|length != 1 %}s{% endif %}</p>
+            <div class="button-group">
+                <a class="button-pill is-active" href="/appointments/{{ user.id }}?view={{ user.default_view }}&mode=my">Open Calendar</a>
+            </div>
+        </div>
+    {% endif %}
+
+    {% if next_appointments %}
+        <div class="card">
+            <h3>Coming Up</h3>
+            <ul class="tap-list">
+                {% for appointment in next_appointments %}
+                    <li>
+                        <strong>{{ appointment.title }}</strong><br>
+                        {{ appointment.appointment_time[8:10] }}-{{ appointment.appointment_time[5:7] }}-{{ appointment.appointment_time[0:4] }} at {{ appointment.appointment_time[11:16] }}
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <dialog id="settings-panel" class="settings-panel">
+        <div class="settings-panel-inner">
+            <h3>Settings</h3>
+
+            <form method="POST" action="/users/{{ user.id }}/rename">
+                <label for="profile_name">Profile name</label>
+                <input type="text" id="profile_name" name="name" value="{{ user.name }}" required>
+
+                <div class="form-actions" style="margin-top: 16px; margin-bottom: 18px;">
+                    <button type="submit">Save name</button>
+                </div>
+            </form>
+
+            <hr style="margin: 18px 0; border: none; border-top: 1px solid var(--card-border);">
+
+            <form method="POST" action="/users/{{ user.id }}/preferences">
+                <label for="default_view">Default view</label>
+                <select id="default_view" name="default_view">
+                    <option value="today" {% if user.default_view == "today" %}selected{% endif %}>Today</option>
+                    <option value="week" {% if user.default_view == "week" %}selected{% endif %}>Week</option>
+                    <option value="month" {% if user.default_view == "month" %}selected{% endif %}>Month</option>
+                </select>
+
+                <label for="theme">Theme</label>
+                <select id="theme" name="theme">
+                    <option value="light" {% if user.theme == "light" %}selected{% endif %}>Light</option>
+                    <option value="dark" {% if user.theme == "dark" %}selected{% endif %}>Dark</option>
+                </select>
+
+                <div class="form-actions" style="margin-top: 16px;">
+                    <button type="submit">Save settings</button>
+                </div>
+            </form>
+
+            <hr style="margin: 18px 0; border: none; border-top: 1px solid var(--card-border);">
+
+            <form method="POST" action="/logout">
+                <button type="submit">Log out</button>
+            </form>
+        </div>
+    </dialog>
+
+    <script>
+        const settingsPanel = document.getElementById("settings-panel");
+
+        settingsPanel.addEventListener("click", function (event) {
+            const rect = settingsPanel.getBoundingClientRect();
+            const clickedInside =
+                rect.top <= event.clientY &&
+                event.clientY <= rect.top + rect.height &&
+                rect.left <= event.clientX &&
+                event.clientX <= rect.left + rect.width;
+
+            if (!clickedInside) {
+                settingsPanel.close();
+            }
+        });
+    </script>
+{% endblock %}
