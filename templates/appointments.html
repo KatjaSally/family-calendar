@@ -323,7 +323,7 @@
                 <span class="button-pill is-active">{{ current_month_label }}</span>
                 <a class="button-pill" href="/appointments/{{ user.id }}?view=month&mode={{ selected_mode }}&month={{ next_month_key }}">Next month</a>
             </div>
-            <div class="scroll-y desktop-only" style="max-height: 75vh;">
+            <div class="scroll-y" style="max-height: 75vh;">
                 <div class="scroll-x">
                     <table style="min-width: 760px; width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 10px; border-radius: 14px; overflow: hidden;">
                         <thead>
@@ -387,67 +387,6 @@
                         </tbody>
                     </table>
                 </div>
-            </div>
-
-            <div class="mobile-only day-stack">
-                {% for week in month_weeks %}
-                    {% for day in week %}
-                        {% if day.month == month_weeks[0][3].month %}
-                            <div class="day-panel">
-                                <h4>{{ day.strftime("%A") }} · {{ day.day }}</h4>
-
-                                {% if month_cells[day.isoformat()] %}
-                                    {% for appointment in month_cells[day.isoformat()] %}
-                                        {% set declined_count = appointment.shares | selectattr("status", "equalto", "declined") | list | length %}
-                                        {% set user_colors = user_color_map[appointment.user_id] %}
-                                        <div
-                                            style="
-                                                padding: 10px;
-                                                border-radius: 12px;
-                                                margin-bottom: 8px;
-                                                {% if selected_mode == 'family' %}
-                                                    background: {{ user_colors.background }};
-                                                    border: 1px solid {{ user_colors.border }};
-                                                    color: #2F2A24;
-                                                {% elif appointment.user_id == user.id %}
-                                                    background: var(--status-own-bg);
-                                                    border: 1px solid var(--status-own-border);
-                                                    color: #2F2A24;
-                                                {% else %}
-                                                    background: var(--status-shared-bg);
-                                                    border: 1px solid var(--status-shared-border);
-                                                    color: #2F2A24;
-                                                {% endif %}
-                                            "
-                                        >
-                                            <strong>{{ appointment.title }}</strong><br>
-                                            {{ appointment.appointment_time[11:16] }}
-                                            {% if selected_mode == "family" %}
-                                                <div>{{ appointment.user.name }}</div>
-                                            {% elif appointment.user_id != user.id %}
-                                                <div>Shared by {{ appointment.user.name }}</div>
-                                            {% elif declined_count > 0 %}
-                                                <div style="margin-top: 6px;">
-                                                    <span style="display: inline-block; padding: 2px 8px; background: var(--status-decline-bg); border: 1px solid var(--status-decline-border); border-radius: 999px; font-size: 12px; color: var(--status-decline-text);">
-                                                        {{ declined_count }} declined
-                                                    </span>
-                                                </div>
-                                            {% endif %}
-
-                                            {% if appointment.user_id == user.id %}
-                                                <div style="margin-top: 8px;">
-                                                    <button type="button" class="compact-button" onclick="document.getElementById('edit-{{ appointment.id }}').showModal()">Edit</button>
-                                                </div>
-                                            {% endif %}
-                                        </div>
-                                    {% endfor %}
-                                {% else %}
-                                    <p class="muted">No appointments.</p>
-                                {% endif %}
-                            </div>
-                        {% endif %}
-                    {% endfor %}
-                {% endfor %}
             </div>
         {% endif %}
     </div>
