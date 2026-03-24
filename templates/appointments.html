@@ -3,59 +3,55 @@
 {% block content %}
     {% set month_suffix = "&month=" ~ current_month_key if selected_view == "month" else "" %}
     <div class="top-bar">
-        <div class="form-actions">
-            <a class="button-pill" href="/dashboard/{{ user.id }}">Back Home</a>
-            <a class="button-pill" href="/appointments/{{ user.id }}/new">Add Appointment</a>
+        <div class="compact-toolbar">
+            <a class="compact-pill" href="/dashboard/{{ user.id }}">Back Home</a>
+            <a class="compact-pill" href="/appointments/{{ user.id }}/new">Add Appointment</a>
         </div>
     </div>
 
-    <div class="card">
-        <h2>Appointments for {{ user.name }}</h2>
-
-        <h3>View Mode</h3>
-        <p class="button-group">
+    <div class="card compact-card">
+        <div class="compact-toolbar">
             <a
-                class="button-pill {% if selected_mode == 'my' %}is-active{% endif %}"
+                class="compact-pill {% if selected_mode == 'my' %}is-active{% endif %}"
                 href="/appointments/{{ user.id }}?view={{ selected_view }}&mode=my{{ month_suffix }}"
             >
                 My view
             </a>
             <a
-                class="button-pill {% if selected_mode == 'family' %}is-active{% endif %}"
+                class="compact-pill {% if selected_mode == 'family' %}is-active{% endif %}"
                 href="/appointments/{{ user.id }}?view={{ selected_view }}&mode=family{{ month_suffix }}"
             >
                 Family view
             </a>
-        </p>
-        <h3>View</h3>
-        <p class="button-group">
+        </div>
+        <div class="compact-toolbar">
             <a
-                class="button-pill {% if selected_view == 'today' %}is-active{% endif %}"
+                class="compact-pill {% if selected_view == 'today' %}is-active{% endif %}"
                 href="/appointments/{{ user.id }}?view=today&mode={{ selected_mode }}"
             >
                 Today
             </a>
             <a
-                class="button-pill {% if selected_view == 'week' %}is-active{% endif %}"
+                class="compact-pill {% if selected_view == 'week' %}is-active{% endif %}"
                 href="/appointments/{{ user.id }}?view=week&mode={{ selected_mode }}"
             >
                 Week
             </a>
             <a
-                class="button-pill {% if selected_view == 'month' %}is-active{% endif %}"
+                class="compact-pill {% if selected_view == 'month' %}is-active{% endif %}"
                 href="/appointments/{{ user.id }}?view=month&mode={{ selected_mode }}&month={{ current_month_key }}"
             >
                 Month
             </a>
-        </p>
+        </div>
     </div>
 
-    {% if selected_mode == "my" %}
-        <div class="card">
-            <h3>Needs your attention</h3>
-            <ul>
+    {% if selected_mode == "my" and pending_appointments %}
+        <div class="card compact-card attention-card">
+            <h3>Needs Attention</h3>
+            <ul class="pending-list">
                 {% for appointment in pending_appointments %}
-                    <li style="opacity: 0.82; background: var(--status-pending-bg); border: 1px dashed var(--status-pending-border); padding: 14px; border-radius: 12px; margin-bottom: 12px;">
+                    <li class="pending-item">
                         <strong>{{ appointment.title }}</strong><br>
                         {{ appointment.appointment_time[8:10] }}-{{ appointment.appointment_time[5:7] }}-{{ appointment.appointment_time[0:4] }} um {{ appointment.appointment_time[11:16] }}<br>
                         Shared by {{ appointment.user.name }}
@@ -66,7 +62,7 @@
 
                         <div style="margin-top: 10px;">
                             <form method="POST" action="/appointments/{{ user.id }}/accept/{{ appointment.id }}?view={{ selected_view }}&mode={{ selected_mode }}{{ month_suffix }}">
-                                <button type="submit">Accept</button>
+                                <button type="submit" class="compact-button">Accept</button>
                             </form>
                         </div>
 
@@ -74,12 +70,10 @@
                             <form method="POST" action="/appointments/{{ user.id }}/decline/{{ appointment.id }}?view={{ selected_view }}&mode={{ selected_mode }}{{ month_suffix }}">
                                 <label for="decline_note_{{ appointment.id }}">Decline note (optional)</label>
                                 <input type="text" id="decline_note_{{ appointment.id }}" name="decline_note">
-                                <button type="submit">Decline</button>
+                                <button type="submit" class="compact-button">Decline</button>
                             </form>
                         </div>
                     </li>
-                {% else %}
-                    <li>No pending items.</li>
                 {% endfor %}
             </ul>
         </div>
