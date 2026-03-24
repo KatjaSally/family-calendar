@@ -577,6 +577,17 @@
         <div class="settings-panel-inner">
             <h3>Settings</h3>
 
+            <form method="POST" action="/users/{{ user.id }}/rename?view={{ selected_view }}&mode={{ selected_mode }}{{ month_suffix }}">
+                <label for="profile_name">Profile name</label>
+                <input type="text" id="profile_name" name="name" value="{{ user.name }}" required>
+
+                <div class="form-actions" style="margin-top: 16px; margin-bottom: 18px;">
+                    <button type="submit">Save name</button>
+                </div>
+            </form>
+
+            <hr style="margin: 18px 0; border: none; border-top: 1px solid var(--card-border);">
+
             <form method="POST" action="/users/{{ user.id }}/preferences?mode={{ selected_mode }}{{ month_suffix }}">
                 <label for="default_view">Default view</label>
                 <select id="default_view" name="default_view">

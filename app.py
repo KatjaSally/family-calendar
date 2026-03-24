@@ -353,6 +353,25 @@ def save_preferences(user_id):
     return redirect(build_appointments_url(user.id, user.default_view, selected_mode, month_key))
 
 
+@app.route("/users/<int:user_id>/rename", methods=["POST"])
+def rename_user(user_id):
+    access_redirect = require_profile_access(user_id)
+    if access_redirect:
+        return access_redirect
+
+    user = User.query.get_or_404(user_id)
+    new_name = request.form["name"].strip()
+
+    if new_name:
+        user.name = new_name
+        db.session.commit()
+
+    selected_view = request.args.get("view", user.default_view)
+    selected_mode = request.args.get("mode", "my")
+    month_key = request.args.get("month")
+    return redirect(build_appointments_url(user.id, selected_view, selected_mode, month_key))
+
+
 @app.route("/appointments/<int:user_id>", methods=["GET", "POST"])
 def appointments(user_id):
     access_redirect = require_profile_access(user_id)
