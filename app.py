@@ -342,7 +342,8 @@ def dashboard(user_id):
         "dashboard.html",
         user=user,
         pending_appointments=pending_appointments,
-        next_appointments=next_appointments
+        next_appointments=next_appointments,
+        status_message=request.args.get("status", "")
     )
 
 
@@ -405,6 +406,31 @@ def rename_user(user_id):
         db.session.commit()
 
     return redirect(build_dashboard_url(user.id))
+
+
+@app.route("/users/<int:user_id>/change-password", methods=["POST"])
+def change_password(user_id):
+    access_redirect = require_profile_access(user_id)
+    if access_redirect:
+        return access_redirect
+
+    user = User.query.get_or_404(user_id)
+    current_password = request.form["current_password"]
+    new_password = request.form["new_password"]
+    confirm_password = request.form["confirm_password"]
+
+    if not check_password_hash(user.password_hash, current_password):
+        return redirect(url_for("dashboard", user_id=user.id, status="Current password is not correct."))
+
+    if new_password != confirm_password:
+        return redirect(url_for("dashboard", user_id=user.id, status="New passwords do not match."))
+
+    if not new_password:
+        return redirect(url_for("dashboard", user_id=user.id, status="New password cannot be empty."))
+
+    user.password_hash = generate_password_hash(new_password)
+    db.session.commit()
+    return redirect(url_for("dashboard", user_id=user.id, status="Password changed."))
 
 
 @app.route("/appointments/<int:user_id>/new", methods=["GET", "POST"])

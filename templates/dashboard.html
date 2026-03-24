@@ -10,6 +10,10 @@
         <p class="muted">Default view: {{ user.default_view|capitalize }}</p>
     </div>
 
+    {% if status_message %}
+        <p class="status-message">{{ status_message }}</p>
+    {% endif %}
+
     <div class="card">
         <h3>What would you like to do?</h3>
         <div class="button-group">
@@ -73,6 +77,23 @@
 
                 <div class="form-actions" style="margin-top: 16px;">
                     <button type="submit">Save settings</button>
+                </div>
+            </form>
+
+            <hr style="margin: 18px 0; border: none; border-top: 1px solid var(--card-border);">
+
+            <form method="POST" action="/users/{{ user.id }}/change-password">
+                <label for="current_password">Current password</label>
+                <input type="password" id="current_password" name="current_password" required>
+
+                <label for="new_password">New password</label>
+                <input type="password" id="new_password" name="new_password" required>
+
+                <label for="confirm_password">Repeat new password</label>
+                <input type="password" id="confirm_password" name="confirm_password" required>
+
+                <div class="form-actions" style="margin-top: 16px;">
+                    <button type="submit">Change password</button>
                 </div>
             </form>
 
