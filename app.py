@@ -661,6 +661,8 @@ def accept_appointment(user_id, appointment_id):
     if access_redirect:
         return access_redirect
 
+    user = User.query.get_or_404(user_id)
+
     share = AppointmentShare.query.filter_by(
         appointment_id=appointment_id,
         user_id=user_id
@@ -681,6 +683,8 @@ def decline_appointment(user_id, appointment_id):
     access_redirect = require_profile_access(user_id)
     if access_redirect:
         return access_redirect
+
+    user = User.query.get_or_404(user_id)
 
     share = AppointmentShare.query.filter_by(
         appointment_id=appointment_id,
