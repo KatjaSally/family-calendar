@@ -100,7 +100,8 @@
 
                     {% for item in timeline_appointments %}
                         {% set appointment = item.appointment %}
-                        {% set declined_count = appointment.shares | selectattr("status", "equalto", "declined") | list | length %}
+                        {% set declined_shares = appointment.shares | selectattr("status", "equalto", "declined") | list %}
+                        {% set declined_count = declined_shares | length %}
                         {% set user_colors = user_color_map[appointment.user_id] %}
                         <div
                             style="
@@ -139,6 +140,18 @@
                                     <span style="display: inline-block; margin-top: 6px; padding: 2px 8px; background: var(--status-decline-bg); border: 1px solid var(--status-decline-border); border-radius: 999px; font-size: 12px; color: var(--status-decline-text);">
                                         {{ declined_count }} declined
                                     </span>
+                                    <div style="margin-top: 8px; padding: 8px; background: rgba(255, 255, 255, 0.45); border: 1px solid var(--status-decline-border); border-radius: 10px; font-size: 12px;">
+                                        {% for share in declined_shares %}
+                                            <div{% if not loop.last %} style="margin-bottom: 6px;"{% endif %}>
+                                                <strong>{{ share.user.name }}</strong>
+                                                {% if share.note %}
+                                                    : {{ share.note }}
+                                                {% else %}
+                                                    : No note left
+                                                {% endif %}
+                                            </div>
+                                        {% endfor %}
+                                    </div>
                                 {% endif %}
                             {% endif %}
 
@@ -179,7 +192,8 @@
                                 {% for day in week_days %}
                                     <td style="border: 1px solid var(--line-mid); padding: 8px; vertical-align: top; height: 68px; background: var(--table-cell-bg);">
                                         {% for appointment in week_cells[(day.isoformat(), hour)] %}
-                                            {% set declined_count = appointment.shares | selectattr("status", "equalto", "declined") | list | length %}
+                                            {% set declined_shares = appointment.shares | selectattr("status", "equalto", "declined") | list %}
+                                            {% set declined_count = declined_shares | length %}
                                             {% set user_colors = user_color_map[appointment.user_id] %}
                                             <div
                                                 style="
@@ -213,6 +227,18 @@
                                                         <span style="display: inline-block; margin-top: 6px; padding: 2px 8px; background: var(--status-decline-bg); border: 1px solid var(--status-decline-border); border-radius: 999px; font-size: 12px; color: var(--status-decline-text);">
                                                             {{ declined_count }} declined
                                                         </span>
+                                                        <div style="margin-top: 8px; padding: 8px; background: rgba(255, 255, 255, 0.45); border: 1px solid var(--status-decline-border); border-radius: 10px; font-size: 12px;">
+                                                            {% for share in declined_shares %}
+                                                                <div{% if not loop.last %} style="margin-bottom: 6px;"{% endif %}>
+                                                                    <strong>{{ share.user.name }}</strong>
+                                                                    {% if share.note %}
+                                                                        : {{ share.note }}
+                                                                    {% else %}
+                                                                        : No note left
+                                                                    {% endif %}
+                                                                </div>
+                                                            {% endfor %}
+                                                        </div>
                                                     {% endif %}
                                                 {% endif %}
 
@@ -244,7 +270,8 @@
 
                         {% if day_items %}
                             {% for appointment in day_items %}
-                                {% set declined_count = appointment.shares | selectattr("status", "equalto", "declined") | list | length %}
+                                {% set declined_shares = appointment.shares | selectattr("status", "equalto", "declined") | list %}
+                                {% set declined_count = declined_shares | length %}
                                 {% set user_colors = user_color_map[appointment.user_id] %}
                                 <div
                                     style="
@@ -277,6 +304,18 @@
                                         <span style="display: inline-block; margin-top: 6px; padding: 2px 8px; background: var(--status-decline-bg); border: 1px solid var(--status-decline-border); border-radius: 999px; font-size: 12px; color: var(--status-decline-text);">
                                             {{ declined_count }} declined
                                         </span>
+                                        <div style="margin-top: 8px; padding: 8px; background: rgba(255, 255, 255, 0.45); border: 1px solid var(--status-decline-border); border-radius: 10px; font-size: 12px;">
+                                            {% for share in declined_shares %}
+                                                <div{% if not loop.last %} style="margin-bottom: 6px;"{% endif %}>
+                                                    <strong>{{ share.user.name }}</strong>
+                                                    {% if share.note %}
+                                                        : {{ share.note }}
+                                                    {% else %}
+                                                        : No note left
+                                                    {% endif %}
+                                                </div>
+                                            {% endfor %}
+                                        </div>
                                     {% endif %}
 
                                     {% if appointment.user_id == user.id %}
@@ -319,7 +358,8 @@
                                             </div>
 
                                             {% for appointment in month_cells[day.isoformat()] %}
-                                                {% set declined_count = appointment.shares | selectattr("status", "equalto", "declined") | list | length %}
+                                                {% set declined_shares = appointment.shares | selectattr("status", "equalto", "declined") | list %}
+                                                {% set declined_count = declined_shares | length %}
                                                 {% set user_colors = user_color_map[appointment.user_id] %}
                                                 <div
                                                     style="
@@ -346,7 +386,14 @@
                                                     {% if selected_mode == "family" %}
                                                         <div>{{ appointment.user.name }}</div>
                                                     {% elif appointment.user_id == user.id and declined_count > 0 %}
-                                                        <span style="font-size: 11px; color: var(--status-decline-text);"> • {{ declined_count }} declined</span>
+                                                        <div style="margin-top: 4px;">
+                                                            <span style="font-size: 11px; color: var(--status-decline-text);">{{ declined_count }} declined</span>
+                                                            {% for share in declined_shares %}
+                                                                <div style="font-size: 11px; color: var(--status-decline-text);">
+                                                                    {{ share.user.name }}{% if share.note %}: {{ share.note }}{% else %}: No note left{% endif %}
+                                                                </div>
+                                                            {% endfor %}
+                                                        </div>
                                                     {% endif %}
 
                                                     {% if appointment.user_id == user.id %}
@@ -422,6 +469,24 @@
                 </form>
 
                 <hr style="margin: 22px 0; border: none; border-top: 1px solid var(--card-border);">
+
+                {% set declined_shares = appointment.shares | selectattr("status", "equalto", "declined") | list %}
+                {% if declined_shares %}
+                    <h4>Declined Responses</h4>
+                    <div style="margin-bottom: 22px; padding: 12px; background: var(--status-pending-bg); border: 1px solid var(--status-decline-border); border-radius: 12px;">
+                        {% for share in declined_shares %}
+                            <div{% if not loop.last %} style="margin-bottom: 10px;"{% endif %}>
+                                <strong>{{ share.user.name }}</strong><br>
+                                {% if share.note %}
+                                    {{ share.note }}
+                                {% else %}
+                                    <span class="muted">No note left.</span>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <hr style="margin: 22px 0; border: none; border-top: 1px solid var(--card-border);">
+                {% endif %}
 
                 <h4>Delete Appointment</h4>
                 <form method="POST" action="/appointments/{{ user.id }}/delete/{{ appointment.id }}?view={{ selected_view }}&mode={{ selected_mode }}{{ month_suffix }}">
