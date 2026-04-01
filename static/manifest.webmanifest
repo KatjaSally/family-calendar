@@ -1,0 +1,20 @@
+{
+  "name": "Family Coordination App",
+  "short_name": "Family App",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#EEF1EE",
+  "theme_color": "#A78F9A",
+  "icons": [
+    {
+      "src": "/static/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

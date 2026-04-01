@@ -14,6 +14,18 @@
         <p class="status-message">{{ status_message }}</p>
     {% endif %}
 
+    {% if push_ready %}
+        <div class="card compact-card">
+            <div class="notification-row">
+                <div>
+                    <h3 style="margin-bottom: 6px;">Notifications</h3>
+                    <p class="muted" id="notification-status" style="margin: 0;">Turn on notifications so the app can tap you on the shoulder when someone tags you.</p>
+                </div>
+                <button type="button" id="notification-button" class="compact-button">Turn on notifications</button>
+            </div>
+        </div>
+    {% endif %}
+
     <div class="card">
         <h3>What would you like to do?</h3>
         <div class="button-group">
@@ -120,5 +132,103 @@
                 settingsPanel.close();
             }
         });
+
+        const notificationButton = document.getElementById("notification-button");
+        const notificationStatus = document.getElementById("notification-status");
+        const vapidPublicKey = {{ vapid_public_key|tojson if push_ready else '""' }};
+
+        function setNotificationText(message) {
+            if (notificationStatus) {
+                notificationStatus.textContent = message;
+            }
+        }
+
+        function urlBase64ToUint8Array(base64String) {
+            const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+            const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+
+            return outputArray;
+        }
+
+        async function saveSubscription(subscription) {
+            const response = await fetch("/push/subscribe", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(subscription)
+            });
+
+            if (!response.ok) {
+                throw new Error("Could not save notification permission.");
+            }
+        }
+
+        async function getSubscriptionState() {
+            if (!("serviceWorker" in navigator) || !("PushManager" in window) || !notificationButton) {
+                return;
+            }
+
+            const registration = await navigator.serviceWorker.register("/service-worker.js");
+            const existingSubscription = await registration.pushManager.getSubscription();
+
+            if (existingSubscription) {
+                setNotificationText("Notifications are on for this device.");
+                notificationButton.textContent = "Notifications on";
+                notificationButton.disabled = true;
+            }
+        }
+
+        async function enableNotifications() {
+            if (!notificationButton) {
+                return;
+            }
+
+            if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+                setNotificationText("This browser does not support web notifications.");
+                return;
+            }
+
+            notificationButton.disabled = true;
+            setNotificationText("Asking your device for permission...");
+
+            const permission = await Notification.requestPermission();
+
+            if (permission !== "granted") {
+                notificationButton.disabled = false;
+                setNotificationText("Notifications are still off. You can try again whenever you like.");
+                return;
+            }
+
+            const registration = await navigator.serviceWorker.register("/service-worker.js");
+            const existingSubscription = await registration.pushManager.getSubscription();
+            const subscription = existingSubscription || await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+            });
+
+            await saveSubscription(subscription.toJSON());
+            setNotificationText("Notifications are on for this device.");
+            notificationButton.textContent = "Notifications on";
+        }
+
+        if (notificationButton) {
+            getSubscriptionState().catch(function () {
+                setNotificationText("Notifications are not ready just yet on this device.");
+            });
+
+            notificationButton.addEventListener("click", function () {
+                enableNotifications().catch(function () {
+                    notificationButton.disabled = false;
+                    setNotificationText("Something went wrong while turning notifications on.");
+                });
+            });
+        }
     </script>
 {% endblock %}

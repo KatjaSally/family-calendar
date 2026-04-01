@@ -1,9 +1,10 @@
 import os
+import json
 from datetime import datetime, timedelta
 import calendar
 
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, redirect, session, url_for
+from flask import Flask, render_template, request, redirect, session, send_from_directory, jsonify, url_for
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -24,6 +25,9 @@ app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "family-calendar-secret")
 db = SQLAlchemy(app)
 
 JOIN_CODE = os.getenv("JOIN_CODE", "family123")
+VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
+VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
+VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "mailto:notifications@example.com")
 
 USER_COLORS = [
     {"background": "#fce7f3", "border": "#f9a8d4"},
@@ -66,6 +70,16 @@ class Appointment(db.Model):
         backref="appointment",
         cascade="all, delete-orphan"
     )
+
+
+class PushSubscription(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    endpoint = db.Column(db.Text, nullable=False, unique=True)
+    p256dh_key = db.Column(db.String(255), nullable=False)
+    auth_key = db.Column(db.String(255), nullable=False)
+
+    user = db.relationship("User", backref="push_subscriptions")
 
 
 with app.app_context():
@@ -207,6 +221,10 @@ def build_dashboard_url(user_id):
     return url_for("dashboard", user_id=user_id)
 
 
+def build_invitation_url(user):
+    return build_appointments_url(user.id, user.default_view, "my")
+
+
 def build_form_choices():
     hours = [f"{hour:02d}" for hour in range(0, 24)]
     minutes = [f"{minute:02d}" for minute in range(0, 60, 5)]
@@ -232,6 +250,59 @@ def upcoming_appointments_for_user(user):
     ]
     upcoming.sort(key=parse_appointment_time)
     return upcoming
+
+
+def push_notifications_ready():
+    return bool(VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY and VAPID_SUBJECT)
+
+
+def send_push_notification(user, title, body, target_url):
+    if not push_notifications_ready():
+        return
+
+    try:
+        from pywebpush import WebPushException, webpush
+    except ImportError:
+        return
+
+    subscriptions = PushSubscription.query.filter_by(user_id=user.id).all()
+    if not subscriptions:
+        return
+
+    payload = json.dumps(
+        {
+            "title": title,
+            "body": body,
+            "url": target_url,
+        }
+    )
+
+    stale_subscription_ids = []
+
+    for subscription in subscriptions:
+        try:
+            webpush(
+                subscription_info={
+                    "endpoint": subscription.endpoint,
+                    "keys": {
+                        "p256dh": subscription.p256dh_key,
+                        "auth": subscription.auth_key,
+                    },
+                },
+                data=payload,
+                vapid_private_key=VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": VAPID_SUBJECT},
+            )
+        except WebPushException as exc:
+            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            if status_code in {404, 410}:
+                stale_subscription_ids.append(subscription.id)
+
+    if stale_subscription_ids:
+        PushSubscription.query.filter(PushSubscription.id.in_(stale_subscription_ids)).delete(
+            synchronize_session=False
+        )
+        db.session.commit()
 
 
 @app.route("/")
@@ -343,7 +414,9 @@ def dashboard(user_id):
         user=user,
         pending_appointments=pending_appointments,
         next_appointments=next_appointments,
-        status_message=request.args.get("status", "")
+        status_message=request.args.get("status", ""),
+        push_ready=push_notifications_ready(),
+        vapid_public_key=VAPID_PUBLIC_KEY
     )
 
 
@@ -356,6 +429,7 @@ def delete_user(user_id):
     user = User.query.get_or_404(user_id)
     user_name = user.name
 
+    PushSubscription.query.filter_by(user_id=user.id).delete()
     AppointmentShare.query.filter_by(user_id=user.id).delete()
 
     owned_appointments = Appointment.query.filter_by(user_id=user.id).all()
@@ -458,7 +532,12 @@ def add_appointment(user_id):
         db.session.add(new_appointment)
         db.session.flush()
 
+        recipient_users = []
+
         for selected_user_id in selected_user_ids:
+            selected_user = User.query.get(int(selected_user_id))
+            if selected_user:
+                recipient_users.append(selected_user)
             share = AppointmentShare(
                 appointment_id=new_appointment.id,
                 user_id=int(selected_user_id),
@@ -468,6 +547,15 @@ def add_appointment(user_id):
             db.session.add(share)
 
         db.session.commit()
+
+        for recipient_user in recipient_users:
+            send_push_notification(
+                recipient_user,
+                f"{user.name} tagged you",
+                f'{user.name} shared "{new_appointment.title}" with you.',
+                build_invitation_url(recipient_user),
+            )
+
         return redirect(build_appointments_url(user.id, user.default_view, "my"))
 
     other_users = User.query.filter(User.id != user.id).order_by(User.name).all()
@@ -699,6 +787,64 @@ def decline_appointment(user_id, appointment_id):
     selected_mode = request.args.get("mode", "my")
     month_key = request.args.get("month")
     return redirect(build_appointments_url(user_id, selected_view, selected_mode, month_key))
+
+
+@app.route("/push/subscribe", methods=["POST"])
+def save_push_subscription():
+    user_id = logged_in_user_id()
+    if not user_id:
+        return jsonify({"error": "Not logged in."}), 401
+
+    if not push_notifications_ready():
+        return jsonify({"error": "Push notifications are not configured yet."}), 503
+
+    payload = request.get_json(silent=True) or {}
+    endpoint = payload.get("endpoint", "")
+    keys = payload.get("keys", {})
+    p256dh_key = keys.get("p256dh", "")
+    auth_key = keys.get("auth", "")
+
+    if not endpoint or not p256dh_key or not auth_key:
+        return jsonify({"error": "Subscription data is incomplete."}), 400
+
+    existing_subscription = PushSubscription.query.filter_by(endpoint=endpoint).first()
+    if existing_subscription:
+        existing_subscription.user_id = user_id
+        existing_subscription.p256dh_key = p256dh_key
+        existing_subscription.auth_key = auth_key
+    else:
+        db.session.add(
+            PushSubscription(
+                user_id=user_id,
+                endpoint=endpoint,
+                p256dh_key=p256dh_key,
+                auth_key=auth_key,
+            )
+        )
+
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/push/unsubscribe", methods=["POST"])
+def remove_push_subscription():
+    user_id = logged_in_user_id()
+    if not user_id:
+        return jsonify({"error": "Not logged in."}), 401
+
+    payload = request.get_json(silent=True) or {}
+    endpoint = payload.get("endpoint", "")
+    if not endpoint:
+        return jsonify({"error": "Endpoint missing."}), 400
+
+    PushSubscription.query.filter_by(user_id=user_id, endpoint=endpoint).delete()
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/service-worker.js")
+def service_worker():
+    return send_from_directory(app.static_folder, "service-worker.js", mimetype="application/javascript")
 
 
 if __name__ == "__main__":
