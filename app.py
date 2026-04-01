@@ -26,7 +26,7 @@ db = SQLAlchemy(app)
 
 JOIN_CODE = os.getenv("JOIN_CODE", "family123")
 VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
-VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
+VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "").replace("\\n", "\n")
 VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "mailto:notifications@example.com")
 
 USER_COLORS = [
